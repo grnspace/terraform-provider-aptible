@@ -149,6 +149,11 @@ func resourceService() *schema.Resource {
 				Optional: true,
 				Elem:     resourceServiceSizingPolicy(),
 			},
+			"preserve_autoscaled_container_count": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 		},
 	}
 }
@@ -584,7 +589,6 @@ func resourceAppRead(ctx context.Context, d *schema.ResourceData, meta interface
 	var services = make([]map[string]interface{}, len(app.Embedded.Services))
 	for i, s := range app.Embedded.Services {
 		service := make(map[string]interface{})
-		service["container_count"] = s.ContainerCount
 		if s.ContainerMemoryLimitMb.IsSet() {
 			service["container_memory_limit"] = *s.ContainerMemoryLimitMb.Get()
 		}
@@ -603,6 +607,7 @@ func resourceAppRead(ctx context.Context, d *schema.ResourceData, meta interface
 			log.Println(err)
 			return diag.FromErr(err)
 		}
+		service["container_count"], service["preserve_autoscaled_container_count"] = readServiceContainerCount(priorService(d, s.ProcessType), s.ContainerCount, policy)
 		if policy != nil {
 			serviceSizingPolicy := make(map[string]interface{})
 			serviceSizingPolicy["autoscaling_type"] = policy.Autoscaling
@@ -948,13 +953,19 @@ func scaleServices(c context.Context, d *schema.ResourceData, meta interface{}) 
 		}
 		shouldScale := false
 		for key, newValue := range serviceInterface {
-			if key == "force_zero_downtime" || key == "restart_free_scaling" || key == "simple_health_check" || key == "autoscaling_policy" || key == "service_sizing_policy" {
+			if key == "force_zero_downtime" || key == "restart_free_scaling" || key == "simple_health_check" || key == "autoscaling_policy" || key == "service_sizing_policy" || key == "preserve_autoscaled_container_count" {
 				continue // Skip checking these keys. Nothing to do with manual scaling
 			}
 
 			if oldServiceData == nil || oldServiceData[key] != newValue {
 				shouldScale = true
 				break
+			}
+		}
+		if !shouldScale && oldServiceData != nil && preservesContainerCount(oldServiceData) && !preservesContainerCount(serviceInterface) {
+			// State held the applied count, not the autoscaler's, so compare with the live count.
+			if live := findApiServiceByName(apiServices, serviceInterface["process_type"].(string)); live != nil {
+				shouldScale = int(live.ContainerCount) != serviceInterface["container_count"].(int)
 			}
 		}
 		if !shouldScale {
@@ -1003,6 +1014,45 @@ func findApiServiceByName(services []aptibleapi.Service, serviceName string) *ap
 		}
 	}
 	return nil
+}
+
+// priorService returns the service block for processType held in d, or nil.
+func priorService(d *schema.ResourceData, processType string) map[string]interface{} {
+	for _, raw := range d.Get("service").(*schema.Set).List() {
+		s := raw.(map[string]interface{})
+		if s["process_type"] == processType {
+			return s
+		}
+	}
+	return nil
+}
+
+// preservesContainerCount reports whether a service block keeps its
+// container_count under a horizontal autoscaling policy.
+func preservesContainerCount(service map[string]interface{}) bool {
+	if preserve, _ := service["preserve_autoscaled_container_count"].(bool); !preserve {
+		return false
+	}
+	for _, key := range []string{"autoscaling_policy", "service_sizing_policy"} {
+		for _, policy := range service[key].(*schema.Set).List() {
+			if policy.(map[string]interface{})["autoscaling_type"] == "horizontal" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// readServiceContainerCount returns the container_count and
+// preserve_autoscaled_container_count Read stores for a service. While a
+// horizontal autoscaler owns the live count, a preserving service keeps the
+// count Terraform last applied, so autoscaling is not reported as drift.
+func readServiceContainerCount(prior map[string]interface{}, live int32, policy *aptibleapi.ServiceSizingPolicy) (int, bool) {
+	preserve, _ := prior["preserve_autoscaled_container_count"].(bool)
+	if preserve && policy != nil && policy.Autoscaling == "horizontal" {
+		return prior["container_count"].(int), true
+	}
+	return int(live), preserve
 }
 
 func getServiceIdForAppByName(ctx context.Context, meta interface{}, appId int32, processType string) (int32, error) {

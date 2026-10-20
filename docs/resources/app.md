@@ -119,6 +119,14 @@ The `service` block supports:
   the main provider docs for additional details.
 - `autoscaling_policy` - (Optional) A block to manage autoscaling for services. See
   the main provider docs for additional details.
+- `preserve_autoscaled_container_count` - (Default: false) With a `horizontal`
+  `autoscaling_policy`, leave the container count to the autoscaler. Plans don't
+  report its changes as drift, and applies scale the service to `container_count`
+  only when `container_count`, `container_memory_limit`, `container_profile` or
+  `stop_timeout` changes. Any apply that starts or stops preservation (turning
+  this on or off, adding or removing the horizontal policy, or the first apply
+  after an import) scales the service to `container_count` if the live count
+  differs.
 
 The `autoscaling_policy` block supports:
 
