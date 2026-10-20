@@ -665,6 +665,7 @@ func resourceAppUpdate(ctx context.Context, d *schema.ResourceData, meta interfa
 	// Check if any updates for Service settings. If so, change before deploying
 	err := updateServices(ctx, d, meta)
 	if err != nil {
+		keepPriorServices(d)
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
 			Summary:  "There was an error when trying to update services settings.",
@@ -723,6 +724,7 @@ func resourceAppUpdate(ctx context.Context, d *schema.ResourceData, meta interfa
 			CreateOperationRequest(*payload).
 			Execute()
 		if err != nil {
+			keepPriorServices(d)
 			return append(diags, diag.Diagnostic{
 				Severity: diag.Error,
 				Summary:  "Failed to create operation",
@@ -744,6 +746,7 @@ func resourceAppUpdate(ctx context.Context, d *schema.ResourceData, meta interfa
 
 	err = scaleServices(ctx, d, meta)
 	if err != nil {
+		keepPriorServices(d)
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
 			Summary:  "There was an error when trying to scale services.",
@@ -1025,6 +1028,14 @@ func priorService(d *schema.ResourceData, processType string) map[string]interfa
 		}
 	}
 	return nil
+}
+
+// keepPriorServices puts the prior service blocks back in d. On error the SDK
+// saves d to state, and Read would then keep a preserved container_count that
+// was never applied.
+func keepPriorServices(d *schema.ResourceData) {
+	prior, _ := d.GetChange("service")
+	_ = d.Set("service", prior)
 }
 
 // preservesContainerCount reports whether a service block keeps its
