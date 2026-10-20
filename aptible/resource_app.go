@@ -892,7 +892,7 @@ func scaleServices(c context.Context, d *schema.ResourceData, meta interface{}) 
 		}
 		shouldScale := false
 		for key, newValue := range serviceInterface {
-			if key == "force_zero_downtime" || key == "restart_free_scaling" || key == "simple_health_check" || key == "autoscaling_policy" || key == "service_sizing_policy" || key == "preserve_autoscaled_container_count" {
+			if key == "force_zero_downtime" || key == "restart_free_scaling" || key == "simple_health_check" || key == "autoscaling_policy" || key == "service_sizing_policy" || key == "preserve_autoscaled_container_count" || key == "stop_timeout" {
 				continue // Skip checking these keys. Nothing to do with manual scaling
 			}
 
