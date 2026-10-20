@@ -958,7 +958,7 @@ func scaleServices(c context.Context, d *schema.ResourceData, meta interface{}) 
 			}
 		}
 		if !shouldScale {
-			return nil
+			continue
 		}
 
 		g.Go(func() error {
