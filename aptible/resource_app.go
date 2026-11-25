@@ -589,6 +589,7 @@ func resourceAppRead(ctx context.Context, d *schema.ResourceData, meta interface
 	var services = make([]map[string]interface{}, len(app.Embedded.Services))
 	for i, s := range app.Embedded.Services {
 		service := make(map[string]interface{})
+		service["container_count"] = s.ContainerCount
 		if s.ContainerMemoryLimitMb.IsSet() {
 			service["container_memory_limit"] = *s.ContainerMemoryLimitMb.Get()
 		}
@@ -607,7 +608,14 @@ func resourceAppRead(ctx context.Context, d *schema.ResourceData, meta interface
 			log.Println(err)
 			return diag.FromErr(err)
 		}
-		service["container_count"], service["preserve_autoscaled_container_count"] = readServiceContainerCount(priorService(d, s.ProcessType), s.ContainerCount, policy)
+		// The API doesn't store preserve_autoscaled_container_count, so carry it over from state
+		prior := priorService(d, s.ProcessType)
+		preserve, _ := prior["preserve_autoscaled_container_count"].(bool)
+		service["preserve_autoscaled_container_count"] = preserve
+		if preserve && policy != nil && policy.Autoscaling == "horizontal" {
+			// Keep the applied count so autoscaling isn't reported as drift
+			service["container_count"] = prior["container_count"]
+		}
 		if policy != nil {
 			serviceSizingPolicy := make(map[string]interface{})
 			serviceSizingPolicy["autoscaling_type"] = policy.Autoscaling
@@ -1052,18 +1060,6 @@ func preservesContainerCount(service map[string]interface{}) bool {
 		}
 	}
 	return false
-}
-
-// readServiceContainerCount returns the container_count and
-// preserve_autoscaled_container_count Read stores for a service. While a
-// horizontal autoscaler owns the live count, a preserving service keeps the
-// count Terraform last applied, so autoscaling is not reported as drift.
-func readServiceContainerCount(prior map[string]interface{}, live int32, policy *aptibleapi.ServiceSizingPolicy) (int, bool) {
-	preserve, _ := prior["preserve_autoscaled_container_count"].(bool)
-	if preserve && policy != nil && policy.Autoscaling == "horizontal" {
-		return prior["container_count"].(int), true
-	}
-	return int(live), preserve
 }
 
 func getServiceIdForAppByName(ctx context.Context, meta interface{}, appId int32, processType string) (int32, error) {

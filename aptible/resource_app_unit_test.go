@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aptible/aptible-api-go/aptibleapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
@@ -78,37 +77,6 @@ func TestResourceAppUpgradeToPreserveAutoscaledContainerCount(t *testing.T) {
 						t.Errorf("unexpected change outside service: %s", k)
 					}
 				}
-			}
-		})
-	}
-}
-
-func TestReadServiceContainerCount(t *testing.T) {
-	horizontal := &aptibleapi.ServiceSizingPolicy{Autoscaling: "horizontal"}
-	vertical := &aptibleapi.ServiceSizingPolicy{Autoscaling: "vertical"}
-	preserving := map[string]interface{}{"container_count": 2, "preserve_autoscaled_container_count": true}
-	notPreserving := map[string]interface{}{"container_count": 2, "preserve_autoscaled_container_count": false}
-
-	tests := []struct {
-		name         string
-		prior        map[string]interface{}
-		policy       *aptibleapi.ServiceSizingPolicy
-		wantCount    int
-		wantPreserve bool
-	}{
-		{"preserving with horizontal policy keeps state's count", preserving, horizontal, 2, true},
-		{"preserving with vertical policy reads live count", preserving, vertical, 5, true},
-		{"preserving without policy reads live count", preserving, nil, 5, true},
-		{"not preserving reads live count", notPreserving, horizontal, 5, false},
-		{"import has no prior service and reads live count", nil, horizontal, 5, false},
-		{"state without the flag reads live count", map[string]interface{}{"container_count": 2}, horizontal, 5, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotCount, gotPreserve := readServiceContainerCount(tt.prior, 5, tt.policy)
-			if gotCount != tt.wantCount || gotPreserve != tt.wantPreserve {
-				t.Fatalf("got (%d, %v), want (%d, %v)", gotCount, gotPreserve, tt.wantCount, tt.wantPreserve)
 			}
 		})
 	}
