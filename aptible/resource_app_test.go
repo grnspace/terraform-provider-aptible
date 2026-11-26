@@ -448,11 +448,17 @@ func TestAccResourceApp_preserveAutoscaledContainerCount(t *testing.T) {
 					PlanOnly: true,
 				},
 				{
+					// Removing the policy leaves the live count; the next plan shows it as drift.
 					Config: testAccAptibleAppPreservedContainerCount(rHandle, "something-else", false),
 					Check: resource.ComposeTestCheckFunc(
 						resource.TestCheckResourceAttr("aptible_app.test", "service.0.autoscaling_policy.#", "0"),
-						testAccCheckServiceContainerCount("aptible_app.test", "cmd", 1),
+						testAccCheckServiceContainerCount("aptible_app.test", "cmd", 3),
 					),
+					ExpectNonEmptyPlan: true,
+				},
+				{
+					Config: testAccAptibleAppPreservedContainerCount(rHandle, "something-else", false),
+					Check:  testAccCheckServiceContainerCount("aptible_app.test", "cmd", 1),
 				},
 				{
 					Config:   testAccAptibleAppPreservedContainerCount(rHandle, "something-else", false),

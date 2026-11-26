@@ -970,12 +970,6 @@ func scaleServices(c context.Context, d *schema.ResourceData, meta interface{}) 
 				break
 			}
 		}
-		if !shouldScale && oldServiceData != nil && preservesContainerCount(oldServiceData) && !preservesContainerCount(serviceInterface) {
-			// State held the applied count, not the autoscaler's, so compare with the live count.
-			if live := findApiServiceByName(apiServices, serviceInterface["process_type"].(string)); live != nil {
-				shouldScale = int(live.ContainerCount) != serviceInterface["container_count"].(int)
-			}
-		}
 		if !shouldScale {
 			continue
 		}
@@ -1033,22 +1027,6 @@ func priorService(d *schema.ResourceData, processType string) map[string]interfa
 		}
 	}
 	return nil
-}
-
-// preservesContainerCount reports whether a service block keeps its
-// container_count under a horizontal autoscaling policy.
-func preservesContainerCount(service map[string]interface{}) bool {
-	if preserve, _ := service["preserve_autoscaled_container_count"].(bool); !preserve {
-		return false
-	}
-	for _, key := range []string{"autoscaling_policy", "service_sizing_policy"} {
-		for _, policy := range service[key].(*schema.Set).List() {
-			if policy.(map[string]interface{})["autoscaling_type"] == "horizontal" {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func getServiceIdForAppByName(ctx context.Context, meta interface{}, appId int32, processType string) (int32, error) {

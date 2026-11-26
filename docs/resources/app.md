@@ -123,8 +123,9 @@ The `service` block supports:
   `autoscaling_policy`, leave the live container count to the autoscaler: plans
   don't report its changes as drift, and Terraform scales the service only when
   `container_count`, `container_memory_limit` or `container_profile` changes.
-  Turning preservation on or off (including adding or removing the policy, or
-  the first apply after an import) scales the service to `container_count`.
+  Turning preservation on (including adding the policy, or the first apply
+  after an import) scales the service to `container_count`. After turning it
+  off or removing the policy, the next plan shows the live count as drift.
   If an apply fails before the service is scaled, later plans won't retry a
   `container_count` change on its own; scale with `aptible apps:scale` instead.
 
