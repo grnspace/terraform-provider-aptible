@@ -444,8 +444,9 @@ func TestAccResourceApp_preserveAutoscaledContainerCount(t *testing.T) {
 					},
 				},
 				{
-					Config:   testAccAptibleAppPreservedContainerCount(rHandle, "something-else", true),
-					PlanOnly: true,
+					Config:             testAccAptibleAppPreservedContainerCount(rHandle, "something-else", true),
+					PlanOnly:           true,
+					ExpectNonEmptyPlan: false,
 				},
 				{
 					// Removing the policy leaves the live count; the next plan shows it as drift.
@@ -461,8 +462,9 @@ func TestAccResourceApp_preserveAutoscaledContainerCount(t *testing.T) {
 					Check:  testAccCheckServiceContainerCount("aptible_app.test", "cmd", 1),
 				},
 				{
-					Config:   testAccAptibleAppPreservedContainerCount(rHandle, "something-else", false),
-					PlanOnly: true,
+					Config:             testAccAptibleAppPreservedContainerCount(rHandle, "something-else", false),
+					PlanOnly:           true,
+					ExpectNonEmptyPlan: false,
 				},
 			},
 		})

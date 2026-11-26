@@ -8,8 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
-// appStateBeforePreserve returns state for an app with one cmd service as a
-// provider without preserve_autoscaled_container_count wrote it.
+// appStateBeforePreserve returns app state written by a provider version that
+// predates preserve_autoscaled_container_count.
 func appStateBeforePreserve(t *testing.T) *terraform.InstanceState {
 	t.Helper()
 	d := resourceApp().TestResourceData()
