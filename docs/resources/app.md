@@ -125,6 +125,8 @@ The `service` block supports:
   `container_count`, `container_memory_limit` or `container_profile` changes.
   Turning preservation on or off (including adding or removing the policy, or
   the first apply after an import) scales the service to `container_count`.
+  If an apply fails before the service is scaled, later plans won't retry a
+  `container_count` change on its own; scale with `aptible apps:scale` instead.
 
 The `autoscaling_policy` block supports:
 
