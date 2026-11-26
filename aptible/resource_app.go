@@ -609,12 +609,12 @@ func resourceAppRead(ctx context.Context, d *schema.ResourceData, meta interface
 			return diag.FromErr(err)
 		}
 		// The API doesn't store preserve_autoscaled_container_count, so carry it over from state
-		prior := priorService(d, s.ProcessType)
-		preserve, _ := prior["preserve_autoscaled_container_count"].(bool)
+		stateService := findStateServiceByName(d.Get("service").(*schema.Set), s.ProcessType)
+		preserve, _ := stateService["preserve_autoscaled_container_count"].(bool)
 		service["preserve_autoscaled_container_count"] = preserve
 		if preserve && policy != nil && policy.Autoscaling == "horizontal" {
 			// Keep the applied count so autoscaling isn't reported as drift
-			service["container_count"] = prior["container_count"]
+			service["container_count"] = stateService["container_count"]
 		}
 		if policy != nil {
 			serviceSizingPolicy := make(map[string]interface{})
@@ -1018,11 +1018,10 @@ func findApiServiceByName(services []aptibleapi.Service, serviceName string) *ap
 	return nil
 }
 
-// priorService returns the service block for processType held in d, or nil.
-func priorService(d *schema.ResourceData, processType string) map[string]interface{} {
-	for _, raw := range d.Get("service").(*schema.Set).List() {
+func findStateServiceByName(services *schema.Set, serviceName string) map[string]interface{} {
+	for _, raw := range services.List() {
 		s := raw.(map[string]interface{})
-		if s["process_type"] == processType {
+		if s["process_type"] == serviceName {
 			return s
 		}
 	}
