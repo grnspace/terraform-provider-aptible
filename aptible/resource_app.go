@@ -149,6 +149,11 @@ func resourceService() *schema.Resource {
 				Optional: true,
 				Elem:     resourceServiceSizingPolicy(),
 			},
+			"preserve_autoscaled_container_count": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 		},
 	}
 }
@@ -603,6 +608,14 @@ func resourceAppRead(ctx context.Context, d *schema.ResourceData, meta interface
 			log.Println(err)
 			return diag.FromErr(err)
 		}
+		// The API doesn't store preserve_autoscaled_container_count, so carry it over from state
+		stateService := findStateServiceByName(d.Get("service").(*schema.Set), s.ProcessType)
+		preserve, _ := stateService["preserve_autoscaled_container_count"].(bool)
+		service["preserve_autoscaled_container_count"] = preserve
+		if preserve && policy != nil && policy.Autoscaling == "horizontal" {
+			// Keep the applied count so autoscaling isn't reported as drift
+			service["container_count"] = stateService["container_count"]
+		}
 		if policy != nil {
 			serviceSizingPolicy := make(map[string]interface{})
 			serviceSizingPolicy["autoscaling_type"] = policy.Autoscaling
@@ -948,7 +961,7 @@ func scaleServices(c context.Context, d *schema.ResourceData, meta interface{}) 
 		}
 		shouldScale := false
 		for key, newValue := range serviceInterface {
-			if key == "force_zero_downtime" || key == "restart_free_scaling" || key == "simple_health_check" || key == "autoscaling_policy" || key == "service_sizing_policy" {
+			if key == "force_zero_downtime" || key == "restart_free_scaling" || key == "simple_health_check" || key == "autoscaling_policy" || key == "service_sizing_policy" || key == "preserve_autoscaled_container_count" || key == "stop_timeout" {
 				continue // Skip checking these keys. Nothing to do with manual scaling
 			}
 
@@ -958,7 +971,7 @@ func scaleServices(c context.Context, d *schema.ResourceData, meta interface{}) 
 			}
 		}
 		if !shouldScale {
-			return nil
+			continue
 		}
 
 		g.Go(func() error {
@@ -1000,6 +1013,16 @@ func findApiServiceByName(services []aptibleapi.Service, serviceName string) *ap
 	for i := range services {
 		if services[i].ProcessType == serviceName {
 			return &services[i]
+		}
+	}
+	return nil
+}
+
+func findStateServiceByName(services *schema.Set, serviceName string) map[string]interface{} {
+	for _, raw := range services.List() {
+		s := raw.(map[string]interface{})
+		if s["process_type"] == serviceName {
+			return s
 		}
 	}
 	return nil
